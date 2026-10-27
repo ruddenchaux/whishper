@@ -115,11 +115,18 @@ func (s *Server) getTranscriptionSubtitles(c iris.Context) {
 	case "":
 		result = tx.Result
 	default:
-		if len(tx.Edges.Translations) == 0 {
+		var tl *ent.Translation
+		for _, t := range tx.Edges.Translations {
+			if strings.EqualFold(t.TargetLanguage, language) {
+				tl = t
+				break
+			}
+		}
+		if tl == nil {
 			c.StopWithError(iris.StatusNotFound, fmt.Errorf("no translation found for %q language", language))
 			return
 		}
-		result = tx.Edges.Translations[0].Result
+		result = tl.Result
 		filename = language + "_" + filename
 	}
 
@@ -154,6 +161,9 @@ func (s *Server) getTranscriptionSubtitles(c iris.Context) {
 	case "ass":
 		subtitles = subs.GenerateSubsASS(result, subsConfig)
 		c.ContentType("text/ass")
+	case "srt":
+		subtitles = subs.GenerateSubsSRT(result, subsConfig)
+		c.ContentType("application/x-subrip")
 	case "json":
 		c.ContentType("application/json")
 		c.JSON(tx)

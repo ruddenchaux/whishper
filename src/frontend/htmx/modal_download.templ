@@ -1,6 +1,8 @@
 package htmx
 
 import (
+	"fmt"
+
 	"github.com/pluja/anysub/ent"
 )
 
@@ -52,7 +54,7 @@ templ ModalDownload(tx *ent.Transcription) {
         <div class="modal-content" class="bg-white">
             <h1 class="text-lg font-bold">Download transcription</h1>
 
-            <form class="space-y-4" method="get" hx-get="/api/v1/transcriptions/{tx.ID}/subtitles">
+            <form class="space-y-4" method="get" hx-get={ fmt.Sprintf("/api/v1/transcriptions/%d/subtitles", tx.ID) }>
                 <div>
                     <label for="language" class="block text-sm font-medium text-gray-300"> Language </label>
 
@@ -60,7 +62,7 @@ templ ModalDownload(tx *ent.Transcription) {
                         class="mt-1.5 w-full text-gray-600 rounded-lg border-gray-900 sm:text-sm">
                         <option value="">{tx.Result.Language}</option>
                         for _ , tl := range tx.Edges.Translations {
-                            <option value="{tl.TargetLanguage}">{tl.TargetLanguage}</option>
+                            <option value={ tl.TargetLanguage }>{tl.TargetLanguage}</option>
                         }
                     </select>
                 </div>
@@ -71,6 +73,7 @@ templ ModalDownload(tx *ent.Transcription) {
                     <select name="format" id="format" class="mt-1.5 w-full text-gray-600 rounded-lg border-gray-900 sm:text-sm">
                         <option value="ass">.ass</option>
                         <option value="srt">.srt</option>
+                        <option value="vtt">.vtt</option>
                         <option value="json">.json</option>
                     </select>
                 </div>

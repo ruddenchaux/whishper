@@ -37,12 +37,18 @@ func GenerateSubsVTT(t models.TranscriptionResult, c SubtitleConfig) string {
 		addVttSpeakerStyle(&vttBuilder, t, c.SpeakerColors)
 	}
 
-	buildVttWordSubtitles(&vttBuilder, t, c)
+	buildWordCues(t, c, func(cueCounter int, startTime, endTime float64, speaker string, words []string) {
+		writeVttCue(&vttBuilder, cueCounter, startTime, endTime, speaker, words)
+	})
 
 	return vttBuilder.String()
 }
 
-func buildVttWordSubtitles(b *strings.Builder, t models.TranscriptionResult, c SubtitleConfig) {
+type cueWriter func(cueCounter int, startTime, endTime float64, speaker string, words []string)
+
+// buildWordCues groups words into cues and hands each one to write. Shared by
+// the VTT and SRT generators so both split cues identically.
+func buildWordCues(t models.TranscriptionResult, c SubtitleConfig, write cueWriter) {
 	cueCounter := 1
 	var currentSpeaker string
 	cueWords := make([]string, 0)
@@ -74,7 +80,7 @@ func buildVttWordSubtitles(b *strings.Builder, t models.TranscriptionResult, c S
 
 			if newCueNeeded {
 				endTime = prevWordEndTime + delay
-				writeVttCue(b, cueCounter, startTime, endTime, currentSpeaker, cueWords)
+				write(cueCounter, startTime, endTime, currentSpeaker, cueWords)
 				cueCounter++
 				cueWords = []string{word.Word}
 				cueCharsCount = len(word.Word) + spaceLen
@@ -91,7 +97,7 @@ func buildVttWordSubtitles(b *strings.Builder, t models.TranscriptionResult, c S
 	}
 
 	if len(cueWords) > 0 {
-		writeVttCue(b, cueCounter, startTime, endTime, currentSpeaker, cueWords)
+		write(cueCounter, startTime, endTime, currentSpeaker, cueWords)
 	}
 }
 
