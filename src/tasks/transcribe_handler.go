@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/hibiken/asynq"
 	"github.com/pluja/anysub/db"
@@ -13,6 +14,13 @@ import (
 
 const (
 	TypeTranscription = "transcription:create"
+
+	// CPU transcription with diarization runs slower than real time, so
+	// asynq's 30m default timeout fires mid-job. The handler doesn't watch
+	// ctx, so the timed-out run keeps going while asynq schedules a retry,
+	// stacking duplicate whisperx runs on the same file.
+	transcriptionTimeout  = 12 * time.Hour
+	transcriptionMaxRetry = 1
 )
 
 func NewTranscriptionTask(tx ent.Transcription) (*asynq.Task, error) {
@@ -20,7 +28,10 @@ func NewTranscriptionTask(tx ent.Transcription) (*asynq.Task, error) {
 	if err != nil {
 		return nil, err
 	}
-	return asynq.NewTask(TypeTranscription, payload), nil
+	return asynq.NewTask(TypeTranscription, payload,
+		asynq.Timeout(transcriptionTimeout),
+		asynq.MaxRetry(transcriptionMaxRetry),
+	), nil
 }
 
 func HandleNewTranscriptionTask(ctx context.Context, t *asynq.Task) error {
