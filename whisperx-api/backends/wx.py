@@ -152,7 +152,9 @@ class WhisperxBackend:
 
         # Flatten the list of words from all segments for further processing.
         all_file_words = [
-            word for segment in result["segments"] for word in segment["words"]
+            word
+            for segment in result["segments"]
+            for word in self._fill_word_times(segment)
         ]
 
         # Split the transcript into segments based on punctuation and word count.
@@ -174,6 +176,24 @@ class WhisperxBackend:
             "duration": duration,
             "segments": result_segments,
         }
+
+    @staticmethod
+    def _fill_word_times(segment) -> List[WordData]:
+        # The aligner leaves words it cannot match to audio (digits, symbols)
+        # without start/end. Borrow them from the neighbouring words, falling
+        # back to the segment bounds, so later steps can rely on both keys.
+        words = segment["words"]
+        prev_end = segment.get("start", 0.0)
+        for word in words:
+            if "start" not in word:
+                word["start"] = prev_end
+            prev_end = word.get("end", word["start"])
+        next_start = segment.get("end", prev_end)
+        for word in reversed(words):
+            if "end" not in word:
+                word["end"] = max(word["start"], next_start)
+            next_start = word["start"]
+        return words
 
     def _split_transcript(
         self, words: List[WordData], max_splits: int = 12
