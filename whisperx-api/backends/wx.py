@@ -140,13 +140,13 @@ class WhisperxBackend:
         )
 
         if self.diarize:
-            # New whisperX v3.x API for diarization
-            diarize_segments = whisperx.diarize(
-                audio, 
-                result["segments"], 
-                min_speakers=speaker_min, 
-                max_speakers=speaker_max,
-                hf_token=self.hf_token
+            # whisperx 3.1.1: whisperx.diarize is the module; the pipeline
+            # class does the work and assign_word_speakers merges the result.
+            diarize_model = whisperx.DiarizationPipeline(
+                use_auth_token=self.hf_token, device=self.device
+            )
+            diarize_segments = diarize_model(
+                audio, min_speakers=speaker_min, max_speakers=speaker_max
             )
             result = whisperx.assign_word_speakers(diarize_segments, result)
 
