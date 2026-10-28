@@ -1,0 +1,137 @@
+package frontend
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/pluja/anysub/ent"
+	"github.com/pluja/anysub/models"
+)
+
+// Listed literally so tailwind's content scan keeps these classes.
+var speakerColors = []string{
+	"text-emerald-400",
+	"text-sky-400",
+	"text-amber-400",
+	"text-fuchsia-400",
+	"text-rose-400",
+	"text-lime-400",
+	"text-violet-400",
+	"text-orange-400",
+}
+
+type speakerBlock struct {
+	Speaker string
+	Color   string
+	Start   float64
+	Text    string
+}
+
+// segmentSpeaker picks the speaker who says most of a segment's words.
+func segmentSpeaker(seg models.Segment) string {
+	counts := map[string]int{}
+	best := ""
+	for _, w := range seg.Words {
+		if w.Speaker == "" {
+			continue
+		}
+		counts[w.Speaker]++
+		if counts[w.Speaker] > counts[best] {
+			best = w.Speaker
+		}
+	}
+	return best
+}
+
+// speakerBlocks merges consecutive segments from the same speaker and
+// gives each speaker a stable colour in order of first appearance.
+func speakerBlocks(r models.TranscriptionResult) []speakerBlock {
+	var blocks []speakerBlock
+	colors := map[string]string{}
+	for _, seg := range r.Segments {
+		text := strings.TrimSpace(seg.Text)
+		if text == "" {
+			continue
+		}
+		spk := segmentSpeaker(seg)
+		if n := len(blocks); n > 0 && blocks[n-1].Speaker == spk {
+			blocks[n-1].Text += " " + text
+			continue
+		}
+		if _, ok := colors[spk]; !ok {
+			colors[spk] = speakerColors[len(colors)%len(speakerColors)]
+		}
+		blocks = append(blocks, speakerBlock{Speaker: spk, Color: colors[spk], Start: seg.Start, Text: text})
+	}
+	return blocks
+}
+
+func formatTimestamp(seconds float64) string {
+	s := int(seconds)
+	if s < 3600 {
+		return fmt.Sprintf("%d:%02d", s/60, s%60)
+	}
+	return fmt.Sprintf("%d:%02d:%02d", s/3600, (s%3600)/60, s%60)
+}
+
+// displayFileName drops the random "xxxxxx-" prefix added on upload.
+func displayFileName(name string) string {
+	if parts := strings.SplitN(name, "-", 2); len(parts) == 2 {
+		return parts[1]
+	}
+	return name
+}
+
+func speakerLabel(spk string) string {
+	if spk == "" {
+		return "Unknown"
+	}
+	return spk
+}
+
+templ TranscriptionPage(tx *ent.Transcription) {
+	@Base() {
+		<div class="max-w-4xl px-4 mx-auto my-6">
+			<a href="/app" class="text-sm text-gray-500 hover:text-emerald-400">&larr; All transcriptions</a>
+			<div class="flex flex-wrap items-end justify-between gap-4 mt-4">
+				<div>
+					<h1 class="text-2xl font-bold">{ displayFileName(tx.FileName) }</h1>
+					<p class="mt-1 text-xs text-gray-500">
+						#{ fmt.Sprint(tx.ID) } · { tx.Result.Language } · { tx.Duration } · { tx.Status }
+					</p>
+				</div>
+				if tx.Status == models.TsStatusDone {
+					<button
+						class="p-2 text-sm font-bold transition duration-300 rounded-lg text-emerald-200 bg-emerald-700/60 hover:bg-emerald-700"
+						hx-get={ fmt.Sprintf("/htmx/v1/modal-download/%d", tx.ID) }
+						hx-target="body"
+						hx-swap="beforeend"
+					>
+						Download
+					</button>
+				}
+			</div>
+			<audio id="player" class="sticky top-0 z-10 w-full mt-4" controls preload="metadata" src={ fmt.Sprintf("/tx/%d/audio", tx.ID) }></audio>
+			if tx.Status != models.TsStatusDone {
+				<p class="mt-6 text-gray-400">This transcription is not finished yet (status: { tx.Status }).</p>
+			} else {
+				<div class="mt-6 space-y-4">
+					for _, b := range speakerBlocks(tx.Result) {
+						<div>
+							<div class="flex items-baseline gap-3 text-sm">
+								<span class={ "font-bold", b.Color }>{ speakerLabel(b.Speaker) }</span>
+								<button
+									class="text-xs text-gray-500 hover:text-emerald-400"
+									_={ fmt.Sprintf("on click set the currentTime of #player to %.2f then call #player.play()", b.Start) }
+								>
+									{ formatTimestamp(b.Start) }
+								</button>
+							</div>
+							<p class="mt-1 leading-relaxed text-gray-300">{ b.Text }</p>
+						</div>
+					}
+				</div>
+			}
+		</div>
+	}
+}

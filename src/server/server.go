@@ -79,6 +79,10 @@ func (s *Server) RegisterRoutes() {
 			// Protected route for the main app
 			appParty := authParty.Party("/app")
 			appParty.Get("/", iris.Component(frontend.Index()))
+
+			// Transcription viewer, linked from the transcription cards
+			authParty.Get("/tx/{id:int}", s.TranscriptionPageHandler)
+			authParty.Get("/tx/{id:int}/audio", s.TranscriptionAudioHandler)
 		}
 	}
 
