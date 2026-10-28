@@ -89,16 +89,16 @@ func (s *Server) RegisterRoutes() {
 	// HTMX Elements routes
 	{
 		v1Htmx := s.Router.Party("/htmx/v1")
-		v1Htmx.Use(s.ApiMustBeLogged)
+		v1Htmx.Use(s.ApiMustBeLogged, s.RequireOwnership)
 		v1Htmx.Get("/modal-new-tx", iris.Component(htmx.ModalNewTranscription()))
-		v1Htmx.Get("/modal-new-tl/{id:int}", s.NewTranslationModalHandler)
+		v1Htmx.Get("/modal-new-tl/{id:int}", s.RequireTranslations, s.NewTranslationModalHandler)
 		v1Htmx.Get("/modal-download/{id:int}", s.DownloadModalHandler)
 	}
 
 	// API v1 Routes
 	{
 		v1Api := s.Router.Party("/api/v1")
-		v1Api.Use(s.ApiMustBeLogged)
+		v1Api.Use(s.ApiMustBeLogged, s.RequireOwnership)
 
 		// Transcribe API
 		v1Api.Post("/transcriptions", s.createTranscription)
@@ -110,8 +110,8 @@ func (s *Server) RegisterRoutes() {
 		v1Api.Get("/transcriptions/{id:int}/subtitles", s.getTranscriptionSubtitles)
 
 		// Translate API
-		v1Api.Post("/transcriptions/{id:int}/translations", s.createTranslationTask)
-		v1Api.Patch("/transcriptions/{id:int}/translations/{langTo:string}", s.updateTranslation)
+		v1Api.Post("/transcriptions/{id:int}/translations", s.RequireTranslations, s.createTranslationTask)
+		v1Api.Patch("/transcriptions/{id:int}/translations/{langTo:string}", s.RequireTranslations, s.updateTranslation)
 		// v1Api.Get("/transcriptions/{id:int}/translations/{lang:str}", s.getTranslationByLanguage)
 		// v1Api.Get("/transcriptions/{id:int}/translations/{lang:str}/status", s.getTranslationStatusByLanguage)
 

@@ -115,6 +115,11 @@ func MakeTranslation(translation *ent.Translation, trx_id int) error {
 	return nil
 }
 
+// Enabled reports whether a LibreTranslate endpoint is configured.
+func Enabled() bool {
+	return os.Getenv("LIBRETRANSLATE_ENDPOINT") != ""
+}
+
 func Translate(text, sourceLang, targetLang string) (string, error) {
 	params := url.Values{}
 	params.Set("q", text)

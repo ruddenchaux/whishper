@@ -5,6 +5,7 @@ import (
 	"github.com/pluja/anysub/models"
 	"github.com/dustin/go-humanize"
 	"github.com/pluja/anysub/ent"
+	"github.com/pluja/anysub/utils/translations"
 	"fmt"
 )
 
@@ -40,17 +41,19 @@ templ TranscriptionCard(tx *ent.Transcription) {
 			</div>
 		</div>
 		if tx.Status == models.TsStatusDone {
-			<!-- TRANSLATE -->
-			<button
-				class="p-1 font-bold transition duration-300 rounded-lg text-sky-200 bg-sky-800/60 hover:bg-sky-800"
-				hx-get={ fmt.Sprintf("/htmx/v1/modal-new-tl/%d?lang=%s", tx.ID, tx.Result.Language) }
-				hx-target="body"
-				hx-swap="beforeend"
-				hx-swap="outerHTML"
-				hx-target={ fmt.Sprintf("#tx-%d", tx.ID) }
-			>
-				<i class="px-1 text-xl ti ti-language-hiragana"></i>
-			</button>
+			if translations.Enabled() {
+				<!-- TRANSLATE -->
+				<button
+					class="p-1 font-bold transition duration-300 rounded-lg text-sky-200 bg-sky-800/60 hover:bg-sky-800"
+					hx-get={ fmt.Sprintf("/htmx/v1/modal-new-tl/%d?lang=%s", tx.ID, tx.Result.Language) }
+					hx-target="body"
+					hx-swap="beforeend"
+					hx-swap="outerHTML"
+					hx-target={ fmt.Sprintf("#tx-%d", tx.ID) }
+				>
+					<i class="px-1 text-xl ti ti-language-hiragana"></i>
+				</button>
+			}
 			<!-- EDIT -->
 			<button _={ fmt.Sprintf("on click go to url '/tx/%d'", tx.ID) } class="p-1 font-bold transition duration-300 rounded-lg text-emerald-200 bg-emerald-700/60 hover:bg-emerald-700">
 				<i class="px-1 text-xl ti ti-edit"></i>
