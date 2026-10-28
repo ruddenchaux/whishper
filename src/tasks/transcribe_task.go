@@ -33,15 +33,24 @@ func transcribe(t *ent.Transcription) error {
 
 	var res models.TranscriptionResult
 
+	params := map[string]string{
+		"model_size": t.ModelSize,
+		"task":       t.Task,
+		"language":   t.Language,
+		"device":     t.Device,
+		"filename":   t.FileName,
+		"diarize":    strconv.FormatBool(t.Diarize),
+	}
+	// Speaker hints guide diarization; unset (0) leaves pyannote to guess.
+	if t.SpeakerMin > 0 {
+		params["speaker_min"] = strconv.FormatInt(t.SpeakerMin, 10)
+	}
+	if t.SpeakerMax > 0 {
+		params["speaker_max"] = strconv.FormatInt(t.SpeakerMax, 10)
+	}
+
 	resp, err := rest.R().
-		SetQueryParams(map[string]string{
-			"model_size": t.ModelSize,
-			"task":       t.Task,
-			"language":   t.Language,
-			"device":     t.Device,
-			"filename":   t.FileName,
-			"diarize":    strconv.FormatBool(t.Diarize),
-		}).
+		SetQueryParams(params).
 		SetHeader("Accept", "application/json").
 		SetResult(&res).
 		Post(transcribeAPI)

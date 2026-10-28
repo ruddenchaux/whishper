@@ -22,13 +22,17 @@ import (
 	"github.com/pluja/anysub/utils/translations"
 )
 
+// Fast and close to large-v3 in accuracy; "small" (the upstream default)
+// is noticeably worse, especially outside English.
+const defaultModelSize = "large-v3-turbo"
+
 func (s *Server) createTranscription(c iris.Context) {
 	session := sessions.Get(c)
 	uid := session.Get("user").(int)
 	// Request parameters (form)
 	language := strings.ToLower(c.FormValueDefault("language", c.URLParamDefault("language", "auto")))
 	device := strings.ToLower(c.FormValueDefault("device", c.URLParamDefault("device", "cpu")))
-	modelSize := strings.ToLower(c.FormValueDefault("modelSize", c.URLParamDefault("modelSize", "small")))
+	modelSize := strings.ToLower(c.FormValueDefault("modelSize", c.URLParamDefault("modelSize", defaultModelSize)))
 	diarize_text := strings.ToLower(c.FormValueDefault("diarize", c.URLParamDefault("diarize", "on")))
 	diarize := (diarize_text == "on" || diarize_text == "true")
 	log.Debug().Msgf("Diarize: %v", diarize)
@@ -52,8 +56,9 @@ func (s *Server) createTranscription(c iris.Context) {
 	c.SaveFormFile(fileHeader, dest)
 
 	// Speakers
-	speakerMin := c.URLParamInt64Default("speaker_min", -1)
-	speakerMax := c.URLParamInt64Default("speaker_max", -1)
+	// The new-transcription form posts these as form fields, not URL params.
+	speakerMin := c.PostValueInt64Default("speaker_min", c.URLParamInt64Default("speaker_min", -1))
+	speakerMax := c.PostValueInt64Default("speaker_max", c.URLParamInt64Default("speaker_max", -1))
 
 	if speakerMin > 0 && speakerMax > 0 && speakerMin > speakerMax {
 		speakerMin, speakerMax = speakerMax, speakerMin
@@ -72,7 +77,7 @@ func (s *Server) createTranscription(c iris.Context) {
 		SetUserID(uid)
 
 	if speakerMax > 0 {
-		txCreate.SetSpeakerMin(speakerMin)
+		txCreate.SetSpeakerMax(speakerMax)
 	}
 	if speakerMin > 0 {
 		txCreate.SetSpeakerMin(speakerMin)

@@ -23,6 +23,10 @@ COPY src/ .
 RUN templ generate && GOOS=linux go build -o anysub .
 
 FROM ${BASE_IMAGE}
+# The whisperx-api Python sources are pure Python, so they can be refreshed
+# without rebuilding the pip layers of the base image.
+COPY whisperx-api/main.py whisperx-api/classes.py whisperx-api/transcribe.py /app/
+COPY whisperx-api/backends/ /app/backends/
 COPY --from=builder /app/anysub /usr/bin/anysub
 COPY --from=builder /app/frontend /app/frontend
 COPY --from=css /repo/src/frontend/static/css/style.css /app/frontend/static/css/style.css

@@ -16,7 +16,14 @@ SUPPORTED_MODELS = [
     "medium.en",
     "large-v2",
     "large-v3",
+    "large-v3-turbo",
 ]
+
+# Models faster-whisper 1.0.0 has no short name for, mapped to their
+# CTranslate2 repos (the same repo newer faster-whisper uses for the name).
+MODEL_REPOS = {
+    "large-v3-turbo": "mobiuslabsgmbh/faster-whisper-large-v3-turbo",
+}
 
 # TypedDicts for structured and clear data representation of word and segment data.
 WordData = TypedDict(
@@ -69,12 +76,18 @@ class WhisperxBackend:
         )
 
     def load(self) -> None:
-        # Load the Whisper model from the local path into memory.
+        # Load the Whisper model from the local path into memory. Passing the
+        # preloaded directory keeps faster-whisper off the Hub, whose cache
+        # isn't on a volume and would be re-downloaded after every restart.
+        source = self.model_path
+        if not os.path.isfile(os.path.join(source, "model.bin")):
+            source = MODEL_REPOS.get(self.model_size, self.model_size)
         self.model = whisperx.load_model(
-            self.model_size,
+            source,
             device=self.device,
             compute_type=self.compute_type,
-            asr_options={"suppress_numerals": True},
+            # Suppressing numerals spells out or mangles dates and amounts.
+            asr_options={"suppress_numerals": False},
             threads=int(os.getenv("WHISPER_THREADS", 4)),
         )
 
@@ -84,14 +97,14 @@ class WhisperxBackend:
         os.makedirs(self.model_path, exist_ok=True)
         try:
             download_model(
-                self.model_size,
+                MODEL_REPOS.get(self.model_size, self.model_size),
                 output_dir=self.model_path,
                 local_files_only=True,
                 cache_dir=local_model_cache,
             )
         except FileNotFoundError:
             download_model(
-                self.model_size,
+                MODEL_REPOS.get(self.model_size, self.model_size),
                 output_dir=self.model_path,
                 local_files_only=False,
                 cache_dir=local_model_cache,
