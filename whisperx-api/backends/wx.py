@@ -1,4 +1,5 @@
 import os
+import traceback
 import numpy as np
 from typing import List, TypedDict, Optional
 from faster_whisper import WhisperModel, download_model
@@ -158,7 +159,13 @@ class WhisperxBackend:
         ]
 
         # Split the transcript into segments based on punctuation and word count.
-        srt_output = self._split_transcript(all_file_words)
+        # This runs after hours of work, so never let it lose the result: fall
+        # back to the segments whisperx produced.
+        try:
+            srt_output = self._split_transcript(all_file_words)
+        except Exception:
+            traceback.print_exc()
+            srt_output = [{"words": s["words"]} for s in result["segments"]]
 
         # Create the final segments with structured data for the transcription.
         result_segments = self._create_segments(srt_output)
@@ -213,31 +220,34 @@ class WhisperxBackend:
         return srt_output
 
     def _split_line(self, words: List[WordData], max_splits: int) -> List[Segment]:
-        # Recursive function to split lines at commas or natural pauses.
+        # Split a line into chunks of at most max_splits words, cutting at the
+        # comma or the longest pause nearest the middle. The cut index is kept
+        # in [0, len - 2], so both halves are non-empty and strictly shorter:
+        # upstream shrank max_splits on every level instead, which recursed
+        # forever on long unpunctuated speech.
         if len(words) <= max_splits:
             return [{"words": words}]
         middle = len(words) // 2
-        comma_indices = [i for i, word in enumerate(words[:-1]) if "," in word["word"]]
-        closest_comma_index = min(
-            comma_indices, key=lambda idx: abs(middle - idx), default=None
+        window = range(
+            max(0, middle - len(words) // 5),
+            min(len(words) - 1, middle + len(words) // 5 + 1),
         )
-        if closest_comma_index is None:
-            # If no comma is found, look for the largest gap between words.
-            window_start = max(0, middle - len(words) // 5)
-            window_end = min(len(words), middle + len(words) // 5)
+        cut = None
+        comma_indices = [i for i in window if "," in words[i]["word"]]
+        if comma_indices:
+            cut = min(comma_indices, key=lambda idx: abs(middle - idx))
+        else:
+            # No comma nearby: cut at the largest gap between words.
             max_gap_size = 0
-            for i in range(window_start, window_end - 1):
+            for i in window:
                 gap_size = words[i + 1]["start"] - words[i]["end"]
                 if gap_size > max_gap_size:
                     max_gap_size = gap_size
-                    closest_comma_index = i
-        closest_comma_index = closest_comma_index or middle
-        # Split the words at the chosen comma or gap.
-        left_part = words[: closest_comma_index + 1]
-        right_part = words[closest_comma_index + 1 :]
-        # Recursively split the left and right parts further if needed.
-        return self._split_line(left_part, max_splits - 1) + self._split_line(
-            right_part, max_splits - 1
+                    cut = i
+        if cut is None:
+            cut = middle - 1
+        return self._split_line(words[: cut + 1], max_splits) + self._split_line(
+            words[cut + 1 :], max_splits
         )
 
     def _create_segments(self, lines: List[Segment]) -> List[Segment]:
